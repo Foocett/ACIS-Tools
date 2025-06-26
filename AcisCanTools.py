@@ -182,11 +182,13 @@ class Logger:
 
     def _run_csv_logging(self):
         msg_count = 0
-        start_time = time.time()
+        start_time = None
         try:
             while self.active:
                 msg = self.bus.recv(timeout=1)
                 if msg:
+                    if start_time is None:
+                        start_time = msg.timestamp
                     msg_count += 1
                     if self.loopback and msg_count % 2 == 0:
                         pass
@@ -213,12 +215,14 @@ class Logger:
 
     def _run_json_logging(self):
         msg_count = 0
-        start_time = time.time()
+        start_time = None
         try:
             first = True
             while self.active:
                 msg = self.bus.recv(timeout=1)
                 if msg:
+                    if start_time is None:
+                        start_time = msg.timestamp
                     msg_count += 1
                     if self.loopback and msg_count % 2 == 0:
                         pass
@@ -414,7 +418,7 @@ class Parser(Logger):
     def _run_csv_logging(self):
         collectPacket = True
         msg_count = 0
-        start_time = time.time()
+        start_time = None
         try:
             # Prepare CSV file if not already open
             if not hasattr(self, '_csvfile'):
@@ -430,6 +434,8 @@ class Parser(Logger):
             while self.active:
                 msg = self.bus.recv(timeout=1)
                 if msg:
+                    if start_time is None:
+                        start_time = msg.timestamp
                     msg_count += 1
                     if self.loopback and msg_count % 2 == 0:
                         pass  # Skip every other message if loopback is enabled
@@ -467,7 +473,7 @@ class Parser(Logger):
 
     def _run_json_logging(self):
         msg_count = 0
-        start_time = time.time()
+        start_time = None
         try:
             if not hasattr(self, '_jsonfile'):
                 self._jsonfile = open(self.output_file, mode='a+')
@@ -482,6 +488,8 @@ class Parser(Logger):
             while self.active:
                 msg = self.bus.recv(timeout=1)
                 if msg:
+                    if start_time is None:
+                        start_time = msg.timestamp
                     msg_count += 1
                     if self.loopback and msg_count % 2 == 0:
                         pass  # Skip every other message if loopback is enabled
