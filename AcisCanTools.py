@@ -5,10 +5,11 @@ from rocket_fft import scipy_like
 import numpy as np
 import numba as nb
 import subprocess
+import threading
 import can
 import csv
 import json
-from time import time as t
+import time
 from datetime import datetime
 from warnings import warn
 import os
@@ -180,7 +181,7 @@ class Logger:
 
     def _run_csv_logging(self):
         msg_count = 0
-        start_time = t()
+        start_time = time.time()
         try:
             while self.active:
                 msg = self.bus.recv(timeout=1)
@@ -208,7 +209,7 @@ class Logger:
 
     def _run_json_logging(self):
         msg_count = 0
-        start_time = t()
+        start_time = time.time()
         try:
             first = True
             while self.active:
@@ -404,7 +405,7 @@ class Parser(Logger):
 
     def _run_csv_logging(self):
         msg_count = 0
-        start_time = t()
+        start_time = time.time()
         try:
             # Prepare CSV file if not already open
             if not hasattr(self, '_csvfile'):
@@ -452,7 +453,7 @@ class Parser(Logger):
 
     def _run_json_logging(self):
         msg_count = 0
-        start_time = t()
+        start_time = time.time()
         try:
             if not hasattr(self, '_jsonfile'):
                 self._jsonfile = open(self.output_file, mode='a+')
@@ -782,6 +783,127 @@ class utils:
                 f"Field '{field}' is not recognized. Use one of: {', '.join(NOxAliases + O2Aliases + statusAliases + heaterAliases + errorNOxAliases + errorO2Aliases)}.")
 
 
+class sensorSim:
+    """
+    Simulates a CAN sensor by replaying messages from a CSV log (Logger or Parser format) onto a CAN interface.
+    Messages are reconstructed as python-can Message objects and sent to the specified interface, matching original timing.
+    The class can be used as a drop-in replacement for a real CAN bus for testing/logging.
+    """
+
+    def __init__(self, inputFile, interface='can0', dataFormat='parsed'):
+        self.interface = interface
+        self.dataFormat = dataFormat.lower()
+        self.inputFile = inputFile
+        self.messages = []  # List of (timestamp, can.Message)
+        self._load_csv()
+        self.bus = can.Bus(channel=self.interface, interface='socketcan')
+        self._replay_thread = None
+        self._stop_replay = False
+
+    def _load_csv(self):
+        self.messages = []
+        with open(self.inputFile, 'r') as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            if self.dataFormat == 'parsed':
+                time_idx = header.index('Time')
+                src_idx = header.index('Src')
+                dest_idx = header.index('Dest')
+                prio_idx = header.index('Priority')
+                pgn_idx = header.index('PGN')
+                # Indices for parsed fields
+                nox_idx = header.index('NOx Raw')
+                o2_idx = header.index('O2 Raw')
+                status_idx = header.index('Status')
+                heater_idx = header.index('Heater')
+                error_nox_idx = header.index('Error NOx')
+                error_o2_idx = header.index('Error O2')
+            elif self.dataFormat == 'raw':
+                time_idx = header.index('Time')
+                src_idx = header.index('Src')
+                dest_idx = header.index('Dest')
+                prio_idx = header.index('Priority')
+                pgn_idx = header.index('PGN')
+                data_idx = header.index('Data')
+            else:
+                raise ValueError("dataFormat must be 'parsed' or 'raw'")
+            for row in reader:
+                try:
+                    timestamp = float(row[time_idx])
+                    src = int(row[src_idx]) if row[src_idx] else 0
+                    dest = int(row[dest_idx]) if row[dest_idx] else 0
+                    prio = int(row[prio_idx]) if row[prio_idx] else 0
+                    pgn = int(row[pgn_idx]) if row[pgn_idx] else 0
+                    arbitration_id = (prio << 26) | (pgn << 8) | src
+                    if self.dataFormat == 'parsed':
+                        # Build 8-byte payload from parsed columns
+                        nox = int(row[nox_idx]) if row[nox_idx] else 0
+                        o2 = int(row[o2_idx]) if row[o2_idx] else 0
+                        status = int(row[status_idx]) if row[status_idx] else 0
+                        heater = int(row[heater_idx]) if row[heater_idx] else 0
+                        error_nox = int(row[error_nox_idx]
+                                        ) if row[error_nox_idx] else 0
+                        error_o2 = int(row[error_o2_idx]
+                                       ) if row[error_o2_idx] else 0
+                        # NOx and O2 are 2 bytes each, little-endian
+                        data_bytes = (
+                            nox.to_bytes(2, 'little', signed=False) +
+                            o2.to_bytes(2, 'little', signed=False) +
+                            bytes([status, heater, error_nox, error_o2])
+                        )
+                    else:
+                        # Raw: use Data column, pad to 8 bytes
+                        data_bytes = bytes.fromhex(row[data_idx].replace(
+                            ' ', '')) if row[data_idx] else b''
+                        if len(data_bytes) < 8:
+                            data_bytes = data_bytes + \
+                                bytes(8 - len(data_bytes))
+                    msg = can.Message(
+                        arbitration_id=arbitration_id,
+                        data=data_bytes,
+                        is_extended_id=True
+                    )
+                    self.messages.append((timestamp, msg))
+                except Exception as e:
+                    continue  # Skip malformed rows
+
+    def run(self, loop=False):
+        """
+        Replay the loaded messages onto the CAN interface, matching original timing.
+        If loop=True, repeats indefinitely.
+        """
+        self._stop_replay = False
+        while not self._stop_replay:
+            if not self.messages:
+                break
+            start_time = time.time()
+            first_ts = self.messages[0][0]
+            for i, (ts, msg) in enumerate(self.messages):
+                if self._stop_replay:
+                    break
+                now = time.time()
+                # Wait for the correct relative time
+                rel_time = ts - first_ts
+                sleep_time = start_time + rel_time - now
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                try:
+                    self.bus.send(msg)
+                except Exception:
+                    pass
+            if not loop:
+                break
+
+    def stop(self):
+        """Stop replaying messages."""
+        self._stop_replay = True
+
+    def __del__(self):
+        self.stop()
+        if hasattr(self, 'bus'):
+            self.bus.shutdown()
+
+
 class fftUtilities:
     """
     A class containing static utility methods for FFT (Fast Fourier Transform) operations.
@@ -823,5 +945,12 @@ class fftUtilities:
 
 
 if __name__ == "__main__":
-    print(utils.get_can_interface(verbose=True))
-    print(utils.get_can_interface(verbose=False))
+    sim = sensorSim("logs/field_test.csv",
+                    interface="can0", dataFormat="parsed")
+    try:
+        sim.run()
+        print("how ts work?")
+    except KeyboardInterrupt:
+        print("\n")
+        sim.bus.shutdown()
+        print("Replay stopped by user.")
