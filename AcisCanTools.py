@@ -29,7 +29,7 @@ class Logger:
         read(): Read a CAN message from the bus, only available in 'stream' mode.
     """
 
-    def __init__(self, interface='can0', mode='logging', **kwargs):
+    def __init__(self, interface='can0', mode='logging', loopback=False, **kwargs):
         """
         Initializes the logger class with the specified interface and mode.\n
         Keyword Args: \n
@@ -66,6 +66,7 @@ class Logger:
         ] if kw is not None]  # Filter out None values that aruse when not class is not inherited
 
         # Parameters
+        self.loopback = loopback
         self.active = False
         # Collect arguments
         self.interface = interface
@@ -187,23 +188,26 @@ class Logger:
                 msg = self.bus.recv(timeout=1)
                 if msg:
                     msg_count += 1
-                    rel_time = msg.timestamp - start_time
-                    snd_rc = 'Receive'
-                    if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(
-                            msg.arbitration_id)
+                    if self.loopback and msg_count % 2 == 0:
+                        pass
                     else:
-                        priority = pgn = src = dest = ''
-                    self._csvwriter.writerow([
-                        msg_count,
-                        f"{rel_time:.3f}",
-                        snd_rc,
-                        dest,
-                        src,
-                        priority,
-                        pgn,
-                        msg.data.hex(' ').upper()
-                    ])
+                        rel_time = msg.timestamp - start_time
+                        snd_rc = 'Receive'
+                        if msg.is_extended_id:
+                            priority, pgn, src, dest = self._parse_j1939_id(
+                                msg.arbitration_id)
+                        else:
+                            priority = pgn = src = dest = ''
+                        self._csvwriter.writerow([
+                            (msg_count if not self.loopback else int((msg_count+1)/2)),
+                            f"{rel_time:.3f}",
+                            snd_rc,
+                            dest,
+                            src,
+                            priority,
+                            pgn,
+                            msg.data.hex(' ').upper()
+                        ])
         except KeyboardInterrupt:
             print("Logging stopped by user.")
 
@@ -216,28 +220,31 @@ class Logger:
                 msg = self.bus.recv(timeout=1)
                 if msg:
                     msg_count += 1
-                    rel_time = msg.timestamp - start_time
-                    snd_rc = 'Receive'
-                    if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(
-                            msg.arbitration_id)
+                    if self.loopback and msg_count % 2 == 0:
+                        pass
                     else:
-                        priority = pgn = src = dest = ''
-                    entry = json.dumps({
-                        'No.': msg_count,
-                        'Time': f"{rel_time:.3f}",
-                        'Snd/Rc': snd_rc,
-                        'Dest': dest,
-                        'Src': src,
-                        'Priority': priority,
-                        'PGN': pgn,
-                        'Data': msg.data.hex(' ').upper()
-                    })
-                    if not first:
-                        self._jsonfile.write(',\n')
-                    self._jsonfile.write(entry)
-                    self._jsonfile.flush()
-                    first = False
+                        rel_time = msg.timestamp - start_time
+                        snd_rc = 'Receive'
+                        if msg.is_extended_id:
+                            priority, pgn, src, dest = self._parse_j1939_id(
+                                msg.arbitration_id)
+                        else:
+                            priority = pgn = src = dest = ''
+                        entry = json.dumps({
+                            'No.': (msg_count if not self.loopback else int((msg_count+1)/2)),
+                            'Time': f"{rel_time:.3f}",
+                            'Snd/Rc': snd_rc,
+                            'Dest': dest,
+                            'Src': src,
+                            'Priority': priority,
+                            'PGN': pgn,
+                            'Data': msg.data.hex(' ').upper()
+                        })
+                        if not first:
+                            self._jsonfile.write(',\n')
+                        self._jsonfile.write(entry)
+                        self._jsonfile.flush()
+                        first = False
         except KeyboardInterrupt:
             print("Logging stopped by user.")
 
@@ -316,7 +323,7 @@ class Parser(Logger):
         change_data_source(): Currently not implemented, will change the data source to a different device type.\n
     """
 
-    def __init__(self, interface='can0', mode='logging', **kwargs):
+    def __init__(self, interface='can0', mode='logging', loopback=False, **kwargs):
         """
         Initializes the logger class with the specified interface and mode.\n
         Keyword Args: \n
@@ -325,13 +332,14 @@ class Parser(Logger):
             \toutput_name (str): The name of the output file (default: can_log_{timestamp}).\n
             \treduced_output (bool): If True, automatically drops any arbitration info from all output forms, only giving parsed data (default: False).\n
             \tparse_type (str): The specific device output to be parsed, currently only supports Contenential Smart NOx Sensor, 'smart_nox' (default: 'smart_nox').\n
+            \tloopback (bool): Set to true to prevent packets from being logged twice when your interface is operating in loopback mode (this is a cool way of saying the logger ignores every other packet)
         """
         # Parameters
         self.parse_type = kwargs.get('parse_type', 'smart_nox')
         self.reduced_output = kwargs.get('reduced_output', False)
         # Will be set to the specific device type after it is setup, e.g., 'smart_nox'
         self.configured_for = []
-        super().__init__(interface=interface, mode=mode, **kwargs)
+        super().__init__(interface=interface, mode=mode, loopback=loopback, **kwargs)
 
         acceptable_parse_aliases = [  # Currently only supports this one
             'smart_nox'
@@ -404,6 +412,7 @@ class Parser(Logger):
         return nox_raw, o2_raw, status, heater, error_nox, error_o2
 
     def _run_csv_logging(self):
+        collectPacket = True
         msg_count = 0
         start_time = time.time()
         try:
@@ -422,32 +431,37 @@ class Parser(Logger):
                 msg = self.bus.recv(timeout=1)
                 if msg:
                     msg_count += 1
-                    rel_time = msg.timestamp - start_time
-                    snd_rc = 'Receive'
-                    if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(
-                            msg.arbitration_id)
+                    if self.loopback and msg_count % 2 == 0:
+                        pass  # Skip every other message if loopback is enabled
                     else:
-                        priority = pgn = src = dest = ''
-                    nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(
-                        msg.data)
-                    if self.reduced_output:
-                        self._csvwriter.writerow([
-                            msg_count,
-                            f"{rel_time:.3f}",
-                            nox_raw, o2_raw, status, heater, error_nox, error_o2
-                        ])
-                    else:
-                        self._csvwriter.writerow([
-                            msg_count,
-                            f"{rel_time:.3f}",
-                            snd_rc,
-                            dest,
-                            src,
-                            priority,
-                            pgn,
-                            nox_raw, o2_raw, status, heater, error_nox, error_o2
-                        ])
+                        rel_time = msg.timestamp - start_time
+                        snd_rc = 'Receive'
+                        if msg.is_extended_id:
+                            priority, pgn, src, dest = self._parse_j1939_id(
+                                msg.arbitration_id)
+                        else:
+                            priority = pgn = src = dest = ''
+                        nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(
+                            msg.data)
+                        if self.reduced_output:
+                            self._csvwriter.writerow([
+                                (msg_count if not self.loopback else int(
+                                    (msg_count+1)/2)),
+                                f"{rel_time:.3f}",
+                                nox_raw, o2_raw, status, heater, error_nox, error_o2
+                            ])
+                        else:
+                            self._csvwriter.writerow([
+                                (msg_count if not self.loopback else int(
+                                    (msg_count+1)/2)),
+                                f"{rel_time:.3f}",
+                                snd_rc,
+                                dest,
+                                src,
+                                priority,
+                                pgn,
+                                nox_raw, o2_raw, status, heater, error_nox, error_o2
+                            ])
         except KeyboardInterrupt:
             print("Logging stopped by user.")
 
@@ -469,47 +483,50 @@ class Parser(Logger):
                 msg = self.bus.recv(timeout=1)
                 if msg:
                     msg_count += 1
-                    rel_time = msg.timestamp - start_time
-                    snd_rc = 'Receive'
-                    if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(
-                            msg.arbitration_id)
+                    if self.loopback and msg_count % 2 == 0:
+                        pass  # Skip every other message if loopback is enabled
                     else:
-                        priority = pgn = src = dest = ''
-                    nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(
-                        msg.data)
-                    if self.reduced_output:
-                        entry = json.dumps({
-                            'No.': msg_count,
-                            'Time': f"{rel_time:.3f}",
-                            'NOx Raw': nox_raw,
-                            'O2 Raw': o2_raw,
-                            'Status': status,
-                            'Heater': heater,
-                            'Error NOx': error_nox,
-                            'Error O2': error_o2
-                        })
-                    else:
-                        entry = json.dumps({
-                            'No.': msg_count,
-                            'Time': f"{rel_time:.3f}",
-                            'Snd/Rc': snd_rc,
-                            'Dest': dest,
-                            'Src': src,
-                            'Priority': priority,
-                            'PGN': pgn,
-                            'NOx Raw': nox_raw,
-                            'O2 Raw': o2_raw,
-                            'Status': status,
-                            'Heater': heater,
-                            'Error NOx': error_nox,
-                            'Error O2': error_o2
-                        })
-                    if not first:
-                        self._jsonfile.write(',\n')
-                    self._jsonfile.write(entry)
-                    self._jsonfile.flush()
-                    first = False
+                        rel_time = msg.timestamp - start_time
+                        snd_rc = 'Receive'
+                        if msg.is_extended_id:
+                            priority, pgn, src, dest = self._parse_j1939_id(
+                                msg.arbitration_id)
+                        else:
+                            priority = pgn = src = dest = ''
+                        nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(
+                            msg.data)
+                        if self.reduced_output:
+                            entry = json.dumps({
+                                'No.': (msg_count if not self.loopback else int((msg_count+1)/2)),
+                                'Time': f"{rel_time:.3f}",
+                                'NOx Raw': nox_raw,
+                                'O2 Raw': o2_raw,
+                                'Status': status,
+                                'Heater': heater,
+                                'Error NOx': error_nox,
+                                'Error O2': error_o2
+                            })
+                        else:
+                            entry = json.dumps({
+                                'No.': (msg_count if not self.loopback else int((msg_count+1)/2)),
+                                'Time': f"{rel_time:.3f}",
+                                'Snd/Rc': snd_rc,
+                                'Dest': dest,
+                                'Src': src,
+                                'Priority': priority,
+                                'PGN': pgn,
+                                'NOx Raw': nox_raw,
+                                'O2 Raw': o2_raw,
+                                'Status': status,
+                                'Heater': heater,
+                                'Error NOx': error_nox,
+                                'Error O2': error_o2
+                            })
+                        if not first:
+                            self._jsonfile.write(',\n')
+                        self._jsonfile.write(entry)
+                        self._jsonfile.flush()
+                        first = False
         except KeyboardInterrupt:
             print("Logging stopped by user.")
 
