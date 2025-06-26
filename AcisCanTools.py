@@ -1,4 +1,10 @@
 # logger.py
+import scipy.fft
+import re
+from rocket_fft import scipy_like
+import numpy as np
+import numba as nb
+import subprocess
 import can
 import csv
 import json
@@ -6,6 +12,7 @@ from time import time as t
 from datetime import datetime
 from warnings import warn
 import os
+
 
 class Logger:
     """
@@ -20,6 +27,7 @@ class Logger:
         pauseLogging(): Pause logging.
         read(): Read a CAN message from the bus, only available in 'stream' mode.
     """
+
     def __init__(self, interface='can0', mode='logging', **kwargs):
         """
         Initializes the logger class with the specified interface and mode.\n
@@ -50,16 +58,19 @@ class Logger:
             'output_type',
             'output_location',
             'output_name',
-            'reduced_output' if type(self) is Parser else None, # Only exists in inherited Parser class
-            'parse_type' if type(self) is Parser else None # Only exists in inherited Parser class
-        ] if kw is not None] # Filter out None values that aruse when not class is not inherited
+            # Only exists in inherited Parser class
+            'reduced_output' if type(self) is Parser else None,
+            # Only exists in inherited Parser class
+            'parse_type' if type(self) is Parser else None
+        ] if kw is not None]  # Filter out None values that aruse when not class is not inherited
 
         # Parameters
         self.active = False
         # Collect arguments
         self.interface = interface
         self.output_type = kwargs.get('output_type', 'csv')
-        self.output_name = kwargs.get('output_name', f"can_log_{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        self.output_name = kwargs.get(
+            'output_name', f"can_log_{datetime.now().strftime('%Y%m%d-%H%M%S')}")
         self.output_location = kwargs.get('output_location', os.getcwd())
         # Mode normalization and validation
         if mode in acceptable_stream_aliases:
@@ -67,33 +78,42 @@ class Logger:
         elif mode in acceptable_logged_aliases:
             self.mode = 'logged'
         else:
-            raise ValueError(f"Mode '{mode}' is not recognized. Use either 'stream' or 'logged'.")
+            raise ValueError(
+                f"Mode '{mode}' is not recognized. Use either 'stream' or 'logged'.")
 
         # Validate arguments
         for keyword in kwargs:
             if keyword not in accepable_kwargs:
-                warn(f"Invalid keyword argument: {keyword}, ignoring. \nAcceptable arguments are: {', '.join(accepable_kwargs)}", UserWarning)
+                warn(
+                    f"Invalid keyword argument: {keyword}, ignoring. \nAcceptable arguments are: {', '.join(accepable_kwargs)}", UserWarning)
 
         if self.mode == 'stream':
-            if (len(kwargs) > 0 and type(self) is Logger): # Inherited method can use kwards in stream mode, do not throw warning
-                warn("Provided keyword arguments will be ignored in stream mode", UserWarning)
+            # Inherited method can use kwards in stream mode, do not throw warning
+            if (len(kwargs) > 0 and type(self) is Logger):
+                warn(
+                    "Provided keyword arguments will be ignored in stream mode", UserWarning)
         if self.mode == 'logged':
             # Warn if the user did not provide these values (i.e., they are set to the default)
             if 'output_type' not in kwargs:
-                warn(f"output_type not provided, defaulting to '{self.output_type}'.", UserWarning)
+                warn(
+                    f"output_type not provided, defaulting to '{self.output_type}'.", UserWarning)
             if 'output_location' not in kwargs:
-                warn(f"output_location not provided, defaulting to '{self.output_location}'.", UserWarning)
+                warn(
+                    f"output_location not provided, defaulting to '{self.output_location}'.", UserWarning)
             if 'output_name' not in kwargs:
-                warn(f"output_name not provided, defaulting to '{self.output_name}'.", UserWarning)
+                warn(
+                    f"output_name not provided, defaulting to '{self.output_name}'.", UserWarning)
             if self.output_type not in ['csv', 'json']:
                 raise ValueError("output_type must be either 'csv' or 'json'.")
             if not os.path.exists(self.output_location):
-                warn(f"Output location '{self.output_location}' does not exist. Creating it.", UserWarning)
+                warn(
+                    f"Output location '{self.output_location}' does not exist. Creating it.", UserWarning)
                 os.makedirs(self.output_location)
 
         # Initialize CAN bus
         if self.mode == 'logged':
-            self.output_file = os.path.join(self.output_location, f"{self.output_name}.{self.output_type}")
+            self.output_file = os.path.join(
+                self.output_location, f"{self.output_name}.{self.output_type}")
         # Init
         self.bus = can.Bus(channel=self.interface, interface='socketcan')
 
@@ -110,7 +130,8 @@ class Logger:
         Destructor to ensure any open file handles are closed when the object is deleted.
         """
         self._close()
-        print("CANLogger instance deleted and resources cleaned up.")
+        self.bus.shutdown()
+        print("CAN monitor sucessfully closed and resources cleaned up.")
 
     def beginLogging(self):
         """
@@ -126,10 +147,12 @@ class Logger:
         if self.mode == 'logged':
             if self.output_type == 'csv':
                 if not hasattr(self, '_csvfile'):
-                    self._csvfile = open(self.output_file, mode='a', newline='')
+                    self._csvfile = open(
+                        self.output_file, mode='a', newline='')
                     self._csvwriter = csv.writer(self._csvfile)
                     if self._csvfile.tell() == 0:
-                        self._csvwriter.writerow(['No.', 'Time', 'Snd/Rc', 'Dest', 'Src', 'Priority', 'PGN', 'Data'])
+                        self._csvwriter.writerow(
+                            ['No.', 'Time', 'Snd/Rc', 'Dest', 'Src', 'Priority', 'PGN', 'Data'])
                 self._run_csv_logging()
             elif self.output_type == 'json':
                 if not hasattr(self, '_jsonfile'):
@@ -166,7 +189,8 @@ class Logger:
                     rel_time = msg.timestamp - start_time
                     snd_rc = 'Receive'
                     if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(msg.arbitration_id)
+                        priority, pgn, src, dest = self._parse_j1939_id(
+                            msg.arbitration_id)
                     else:
                         priority = pgn = src = dest = ''
                     self._csvwriter.writerow([
@@ -194,7 +218,8 @@ class Logger:
                     rel_time = msg.timestamp - start_time
                     snd_rc = 'Receive'
                     if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(msg.arbitration_id)
+                        priority, pgn, src, dest = self._parse_j1939_id(
+                            msg.arbitration_id)
                     else:
                         priority = pgn = src = dest = ''
                     entry = json.dumps({
@@ -259,15 +284,19 @@ class Logger:
         Returns:
             tuple: (priority, pgn, src, dest)
         """
-        priority = (arbitration_id >> 26) & 0x7  # Extract bits 26-28 for priority
+        priority = (arbitration_id >>
+                    26) & 0x7  # Extract bits 26-28 for priority
         pgn = (arbitration_id >> 8) & 0x3FFFF    # Extract bits 8-25 for PGN
         src = arbitration_id & 0xFF              # Extract bits 0-7 for source address
-        pdu_format = (arbitration_id >> 16) & 0xFF  # Extract bits 16-23 for PDU format
+        # Extract bits 16-23 for PDU format
+        pdu_format = (arbitration_id >> 16) & 0xFF
         if pdu_format < 240:
-            dest = (arbitration_id >> 8) & 0xFF  # Extract bits 8-15 for destination address
+            # Extract bits 8-15 for destination address
+            dest = (arbitration_id >> 8) & 0xFF
         else:
             dest = 255  # Broadcast or not applicable
         return priority, pgn, src, dest
+
 
 class Parser(Logger):
     """
@@ -285,6 +314,7 @@ class Parser(Logger):
         read(): Read a CAN message from the bus, only available in 'stream' mode.
         change_data_source(): Currently not implemented, will change the data source to a different device type.\n
     """
+
     def __init__(self, interface='can0', mode='logging', **kwargs):
         """
         Initializes the logger class with the specified interface and mode.\n
@@ -298,19 +328,22 @@ class Parser(Logger):
         # Parameters
         self.parse_type = kwargs.get('parse_type', 'smart_nox')
         self.reduced_output = kwargs.get('reduced_output', False)
-        self.configured_for = [] # Will be set to the specific device type after it is setup, e.g., 'smart_nox'
+        # Will be set to the specific device type after it is setup, e.g., 'smart_nox'
+        self.configured_for = []
         super().__init__(interface=interface, mode=mode, **kwargs)
 
-        acceptable_parse_aliases = [ # Currently only supports this one
+        acceptable_parse_aliases = [  # Currently only supports this one
             'smart_nox'
         ]
 
         # Validate arguments
         if self.parse_type not in acceptable_parse_aliases:
-            raise ValueError(f"parse_type '{self.parse_type}' is not recognized. Use one of: {', '.join(acceptable_parse_aliases)}.")
+            raise ValueError(
+                f"parse_type '{self.parse_type}' is not recognized. Use one of: {', '.join(acceptable_parse_aliases)}.")
 
         if "parse_type" not in kwargs:
-            warn(f"parse_type not provided, defaulting to '{self.parse_type}'.", UserWarning)
+            warn(
+                f"parse_type not provided, defaulting to '{self.parse_type}'.", UserWarning)
 
         if type(self.reduced_output) is not bool:
             raise TypeError("reduced_output must be a boolean value.")
@@ -330,7 +363,8 @@ class Parser(Logger):
             error_o2 (bool): If True, include O2 error byte in output.
             internal (bool): internal boolean used to indicate the nature of the call, do not pass this argument
         """
-        if 'smart_nox' not in self.configured_for and not internal: self.configured_for.append('smart_nox')
+        if 'smart_nox' not in self.configured_for and not internal:
+            self.configured_for.append('smart_nox')
         self.nox_raw = nox_raw
         self.o2_raw = o2_raw
         self.status = status
@@ -356,8 +390,10 @@ class Parser(Logger):
         if 'smart_nox' not in self.configured_for:
             warn("Parser is not explicitly configured for Smart NOx Sensor output. Please call configure_smart_nox_output() first, using default configuration", UserWarning)
             self.configure_smart_nox_output(internal=True)
-        nox_raw = int.from_bytes(data[0:2], 'little', signed=False) if self.nox_raw else 0
-        o2_raw = int.from_bytes(data[2:4], 'little', signed=False) if self.o2_raw else 0
+        nox_raw = int.from_bytes(
+            data[0:2], 'little', signed=False) if self.nox_raw else 0
+        o2_raw = int.from_bytes(
+            data[2:4], 'little', signed=False) if self.o2_raw else 0
         status = data[4] if self.status else 0
         heater = data[5] if self.heater else 0
         error_nox = data[6] if self.error_nox else 0
@@ -376,9 +412,11 @@ class Parser(Logger):
                 self._csvwriter = csv.writer(self._csvfile)
                 if self._csvfile.tell() == 0:
                     if self.reduced_output:
-                        self._csvwriter.writerow(['No.', 'Time', 'NOx Raw', 'O2 Raw', 'Status', 'Heater', 'Error NOx', 'Error O2'])
+                        self._csvwriter.writerow(
+                            ['No.', 'Time', 'NOx Raw', 'O2 Raw', 'Status', 'Heater', 'Error NOx', 'Error O2'])
                     else:
-                        self._csvwriter.writerow(['No.', 'Time', 'Snd/Rc', 'Dest', 'Src', 'Priority', 'PGN', 'NOx Raw', 'O2 Raw', 'Status', 'Heater', 'Error NOx', 'Error O2'])
+                        self._csvwriter.writerow(['No.', 'Time', 'Snd/Rc', 'Dest', 'Src', 'Priority',
+                                                 'PGN', 'NOx Raw', 'O2 Raw', 'Status', 'Heater', 'Error NOx', 'Error O2'])
             while self.active:
                 msg = self.bus.recv(timeout=1)
                 if msg:
@@ -386,10 +424,12 @@ class Parser(Logger):
                     rel_time = msg.timestamp - start_time
                     snd_rc = 'Receive'
                     if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(msg.arbitration_id)
+                        priority, pgn, src, dest = self._parse_j1939_id(
+                            msg.arbitration_id)
                     else:
                         priority = pgn = src = dest = ''
-                    nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(msg.data)
+                    nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(
+                        msg.data)
                     if self.reduced_output:
                         self._csvwriter.writerow([
                             msg_count,
@@ -431,10 +471,12 @@ class Parser(Logger):
                     rel_time = msg.timestamp - start_time
                     snd_rc = 'Receive'
                     if msg.is_extended_id:
-                        priority, pgn, src, dest = self._parse_j1939_id(msg.arbitration_id)
+                        priority, pgn, src, dest = self._parse_j1939_id(
+                            msg.arbitration_id)
                     else:
                         priority = pgn = src = dest = ''
-                    nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(msg.data)
+                    nox_raw, o2_raw, status, heater, error_nox, error_o2 = self._smart_nox_decode(
+                        msg.data)
                     if self.reduced_output:
                         entry = json.dumps({
                             'No.': msg_count,
@@ -481,18 +523,19 @@ class Parser(Logger):
         warn("this method is not yet implemented as there is currently only one data source supported", UserWarning)
         pass
 
-import re
-import subprocess
+
 class utils:
     """
     A static class containing various helpful methods for working with the AcisCanTools codebase.\n
     """
+
     def __init__(self):
         """
         Just don't...
         """
         print("[AcisCanTools] I'm not gonna throw an error like some kind of dictator but for future refrence, the utils class is entirely static so there was not much point in creating an instance of it")
         print("[AcisCanTools] By all means though, have fun with your new utils object, I'm not here to judge")
+
     @staticmethod
     def static_decode(data, device="smart_nox"):
         """
@@ -518,8 +561,9 @@ class utils:
                 error_o2 = data[7]
                 return nox_raw, o2_raw, status, heater, error_nox, error_o2
             else:
-                raise ValueError(f"Device '{device}' is not supported for static decoding.")
-        else :
+                raise ValueError(
+                    f"Device '{device}' is not supported for static decoding.")
+        else:
             raise ValueError("Data must be provided for static decoding.")
 
     @staticmethod
@@ -534,14 +578,16 @@ class utils:
             If verbose is True, returns the full output of the command as a string.
         """
         try:
-            output = subprocess.check_output("ip link show type can", shell=True, text=True)
+            output = subprocess.check_output(
+                "ip link show type can", shell=True, text=True)
             if verbose:
                 return output  # Return the full output as a string
             # Not verbose: extract the first interface name
             for line in output.splitlines():
                 match = re.match(r"\d+:\s*([^\s:]+):", line)
                 if match:
-                    return match.group(1)  # Return the interface name as a string
+                    # Return the interface name as a string
+                    return match.group(1)
             print("No CAN interfaces found, but no errors were thrown.")
             return ""  # No interface found
         except Exception as e:
@@ -557,7 +603,8 @@ class utils:
             string: status or None if not found.
         """
         try:
-            output = subprocess.check_output("ip link show type can", shell=True, text=True)
+            output = subprocess.check_output(
+                "ip link show type can", shell=True, text=True)
             for line in output.splitlines():
                 # Match lines like: '3: can0: <NOARP,UP,LOWER_UP,ECHO> mtu ...'
                 match = re.match(r"\d+:\s*([^\s:]+):\s*<([^>]*)>", line)
@@ -589,20 +636,23 @@ class utils:
             ValueError: If the specified field is not found in the CSV file.
             TypeError: If the field is neither a string nor an integer.
         """
-        filepath = filepath + ".csv" if not filepath.endswith(".csv") else filepath
+        filepath = filepath + \
+            ".csv" if not filepath.endswith(".csv") else filepath
 
         try:
             with open(filepath, 'r') as input_file:
                 if type(feild) is str:
                     reader = csv.DictReader(input_file)
                     if feild not in reader.fieldnames:
-                        raise ValueError(f"Field '{feild}' not found in the CSV file.")
+                        raise ValueError(
+                            f"Field '{feild}' not found in the CSV file.")
                     data = [row[feild] for row in reader]
                 elif type(feild) is int:
                     reader = csv.reader(input_file)
                     data = [row[feild] for row in reader if len(row) > feild]
                 else:
-                    raise TypeError("Field must be a string (field name) or an integer (column index).")
+                    raise TypeError(
+                        "Field must be a string (field name) or an integer (column index).")
         except FileNotFoundError:
             print(f"File '{filepath}' not found.")
             return []
@@ -611,7 +661,8 @@ class utils:
             if output_path is None:
                 output_path = os.getcwd()
             if output_name is None:
-                output_name = f"{feild}_extracted_data.csv" if type(feild) is str else "extracted_data.csv"
+                output_name = f"{feild}_extracted_data.csv" if type(
+                    feild) is str else "extracted_data.csv"
             output_filepath = os.path.join(output_path, output_name)
             with open(output_filepath, 'w', newline='') as output_file:
                 writer = csv.writer(output_file)
@@ -624,47 +675,122 @@ class utils:
         return data
 
     @staticmethod
-    def convert_NOx(rawList=[]):
+    def convert_NOx(rawVal):
         """
         Converts a list of raw NOx values to a list of NOx concentrations in ppm.
         The conversion is based on the formula: NOx (ppm) = (raw value / 65536) * 2000
 
         Args:
-            rawList (list): A list of raw NOx values to convert.
+            rawVal (int): A single raw NOx value to convert to PPM.
 
         Returns:
-            list: A list of converted NOx concentrations in ppm.
+            float: A converted NOx concentration in ppm.
         """
-        return [(value * .05) - 200 for value in rawList]
+        return ((rawVal * .05) - 200)
 
     @staticmethod
-    def convert_O2(rawList=[]):
+    def convert_O2(rawVal):
         """
         Converts a list of raw O2 values to a list of O2 concentrations in ppm.
         The conversion is based on the formula: O2 (ppm) = (raw value / 65536) * 2000
 
         Args:
-            rawList (list): A list of raw O2 values to convert.
+            rawVal (int): A single raw O2 value to be converted to percentage.
 
         Returns:
-            list: A list of converted O2 concentrations in %.
+            float: A converted O2 concentration in percentage.
         """
-        return [(value * .000514)-12 for value in rawList]
+        return ((rawVal * .000514)-12)
 
-import scipy.fft
-import numba as nb
-import numpy as np
-from rocket_fft import scipy_like
+    @staticmethod
+    def extract_arbitration_field(arbitration_id, field):
+        """
+        Extracts the arbitration field from a given field name.
+        This is useful for parsing J1939 arbitration IDs.
+
+        Args:
+            arbitration_id (int): The arbitration ID to extract the field from.
+            field (str): The field name to extract the arbitration value from.
+
+        Returns:
+            int: The extracted arbitration value.
+        """
+        destAliases = ["dest", "destination", "d"]
+        srcAliases = ["src", "source", "s"]
+        priorityAliases = ["priority", "p", "prio"]
+        pgnAliases = ["pgn", "p", "param_group_number",
+                      "param_group_num", "param_group"]
+
+        # Extract bits 26-28 for priority
+        priority = (arbitration_id >> 26) & 0x7
+        pgn = (arbitration_id >> 8) & 0x3FFFF    # Extract bits 8-25 for PGN
+        src = arbitration_id & 0xFF              # Extract bits 0-7 for source address
+        # Extract bits 16-23 for PDU format
+        pdu_format = (arbitration_id >> 16) & 0xFF
+        if pdu_format < 240:
+            # Extract bits 8-15 for destination address
+            dest = (arbitration_id >> 8) & 0xFF
+        else:
+            dest = 255  # Broadcast or not applicable
+
+        if field.lower() in destAliases:
+            return dest
+        elif field.lower() in srcAliases:
+            return src
+        elif field.lower() in priorityAliases:
+            return priority
+        elif field.lower() in pgnAliases:
+            return pgn
+        else:
+            raise ValueError(
+                f"Field '{field}' is not recognized. Use one of: {', '.join(destAliases + srcAliases + priorityAliases + pgnAliases)}.")
+
+    @staticmethod
+    def extract_data_field(data, field, convert_raw=False):
+        """
+        Extracts the data field from a given field name.
+
+        Args:
+            data (int list): The data packet to extract the field from.
+            field (str): The field name to extract the data field from.
+            convert_raw (bool): If True, applies conversion factors to the raw O2 or NOx value.
+
+        Returns:
+            int: The extracted arbitration value.
+        """
+        NOxAliases = ["nox", "nox_raw", "nox_raw_value", "nox_raw_data"]
+        O2Aliases = ["o2", "o2_raw", "o2_raw_value", "o2_raw_data"]
+        statusAliases = ["status", "status_byte", "status_data"]
+        heaterAliases = ["heater", "heater_byte", "heater_data"]
+        errorNOxAliases = ["error_nox", "error_nox_byte", "error_nox_data"]
+        errorO2Aliases = ["error_o2", "error_o2_byte", "error_o2_data"]
+        data = utils.static_decode(data)
+        if field.lower() in NOxAliases:
+            return data[0] if not convert_raw else utils.convert_NOx(data[0])
+        elif field.lower() in O2Aliases:
+            return data[1] if not convert_raw else utils.convert_O2(data[1])
+        elif field.lower() in statusAliases:
+            return data[2]
+        elif field.lower() in heaterAliases:
+            return data[3]
+        elif field.lower() in errorNOxAliases:
+            return data[4]
+        elif field.lower() in errorO2Aliases:
+            return data[5]
+        else:
+            raise ValueError(
+                f"Field '{field}' is not recognized. Use one of: {', '.join(NOxAliases + O2Aliases + statusAliases + heaterAliases + errorNOxAliases + errorO2Aliases)}.")
+
+
 class fftUtilities:
     """
     A class containing static utility methods for FFT (Fast Fourier Transform) operations.
     Currently, this class is a placeholder and does not contain any methods.
     """
 
-    #TODO: Implement padding for non-rectandgular multidimensional arrays
+    # TODO: Implement padding for non-rectandgular multidimensional arrays
     @staticmethod
     def make_np_array(data, fill_value=np.nan):
-
         """
         Create an n-dimensional numpy array based on an inputted python list.
         Pads non-rectangular (ragged) lists with fill_value so all rows have equal length.
@@ -694,6 +820,8 @@ class fftUtilities:
         data = np.array(data)
         scipy_like()
         return scipy.fft.fft(data)
+
+
 if __name__ == "__main__":
     print(utils.get_can_interface(verbose=True))
     print(utils.get_can_interface(verbose=False))
