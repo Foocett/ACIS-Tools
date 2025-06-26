@@ -929,46 +929,6 @@ class sensorSim:
             self.bus.shutdown()
 
 
-class fftUtilities:
-    """
-    A class containing static utility methods for FFT (Fast Fourier Transform) operations.
-    Currently, this class is a placeholder and does not contain any methods.
-    """
-
-    # TODO: Implement padding for non-rectandgular multidimensional arrays
-    @staticmethod
-    def make_np_array(data, fill_value=np.nan):
-        """
-        Create an n-dimensional numpy array based on an inputted python list.
-        Pads non-rectangular (ragged) lists with fill_value so all rows have equal length.
-        Args:
-            data (list): Input data to be converted.
-            fill_value: Value to use for padding (default: np.nan).
-        Returns:
-            np.ndarray: Converted NumPy array.
-        """
-
-        if isinstance(data, np.ndarray):
-            return data
-        # If data is 1D, just convert
-        if not isinstance(data, list) or not data or not isinstance(data[0], (list, tuple)):
-            return np.array(data)
-        # Find max row length
-        maxlen = max(len(row) for row in data)
-        padded = [list(row) + [fill_value]*(maxlen - len(row)) for row in data]
-        return np.array(padded)
-
-    @staticmethod
-    @nb.njit
-    def njit_fft(data):
-        """
-        Placeholder for FFT operation. Currently does nothing.
-        """
-        data = np.array(data)
-        scipy_like()
-        return scipy.fft.fft(data)
-
-
 if __name__ == "__main__":
     sim = sensorSim("logs/field_test.csv",
                     interface="can0", dataFormat="parsed")
