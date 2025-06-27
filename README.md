@@ -125,6 +125,21 @@ print(f"NOx: {act.utils.convert_NOx(data[0])}PPM")
 print(f"O2: {act.utils.convert_O2(data[1])}%")
 ```
 
+### Isolating Arbirtation and Payload Information
+
+The utils class contains two methods to selectively extract specific fields from raw CAN information. For arbitration data, bit shifting and masking is required to get meaningful information out of an ID, this method performs this task for a specified field, as when reading the data live we often don't need every peice of information. Likewise, there is a sister method for extracting data payloads for NO<sub>x</sub> sensor data, this method is also able to perform the raw to real conversion for NO<sub>x</sub> and O<sub>2</sub>.
+
+```python
+import AcisCanTools as ACT
+from AcisCanTools import utils as u
+
+log = ACT.Logger(mode="stream", interface=u.get_can_interface())
+packet = log.read(timeout=1)
+if packet is not None:
+    pgn = u.extract_arbitration_field(packet.arbitration_id, 'pgn') # PGN value
+    nox = u.extract_data_field(packet.data, 'nox', convert_raw=True) # Converted NOx value
+```
+
 ### Hardware Detection and Checking
 
 The utils class also contains two methods for detecting a CAN interface on your system as well as checking the status of your primary interface if it exists
