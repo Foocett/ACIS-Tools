@@ -13,21 +13,12 @@ while True:
             pgn = u.extract_arbitration_field(arbitration_id, 'pgn')
             nox = u.extract_data_field(data, 'nox', convert_raw=False)
             o2 = u.extract_data_field(data, 'o2', convert_raw=False)
-            status = u.extract_data_field(data, 'status')
-            heater = u.extract_data_field(data, 'heater')
-            error_nox = u.extract_data_field(data, 'error_nox')
-            error_o2 = u.extract_data_field(data, 'error_o2')
 
             if src != 0:  # Src filtering is unreliable and PGN should be used instead but it's simpler for this isolated test case
                 print(f"SRC: {src}")
                 print(f"PGN: {pgn}")
                 print(f"NOx: {nox:.2f}PPM")
                 print(f"02: {o2:.2f}%")
-                print(f"Status: {status}")
-                print(f"Heater: {heater}")
-                print(f"Error NOx: {error_nox}")
-                print(f"Error O2: {error_o2}")
-                print(f"Raw Data: {data.hex()}")
                 print("")
         else:
             print("No packet received within timeout period.")
