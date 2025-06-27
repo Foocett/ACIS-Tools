@@ -1,13 +1,10 @@
 [project]
-name = "acis-tools"
+name = "AcisCanTools"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "A Python toolkit for logging, parsing, simulating, and analyzing CAN (Controller Area Network) data."
 requires-python = ">=3.12"
 dependencies = [
     "python-can>=4.5.0",
-    "rocket-fft>=0.2.5",
-    "scipy>=1.15.3",
 ]
 
 [dependency-groups]
@@ -16,3 +13,7 @@ dev = [
     "openpyxl>=3.1.5",
     "pandas>=2.3.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["AcisCanTools"]
+exclude = ["plotting", "tests", "logs", "assets"]
