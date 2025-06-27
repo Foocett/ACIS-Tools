@@ -14,3 +14,4 @@ monitor.py
 simTest.py
 plotting/
 tests/
+.markdownlint.json
