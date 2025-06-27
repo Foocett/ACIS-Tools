@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local testing files
+monitor.py
+simTest.py
+plotting/
+tests/
