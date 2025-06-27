@@ -107,12 +107,11 @@ print(ACT.utils.static_decode(packet.data))
 
 The utils class contains two methods to statically convert the raw NO<sub>x</sub> and O<sub>2</sub> values sent by the NO<sub>x</sub> sensor to meaningful unit-values using the following conversion factors
 
-<div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+<div style="display: flex; justify-content: space-evenly; align-items: center; gap: 20px;">
   <img src="assets/NOx_Equation.png" alt="NOx Conversion Equation" width="300"/>
   <img src="assets/O2_Equation.png" alt="O2 Conversion Equation" width="300"/>
 </div>
 
-\
 These functions can be called on a singlular value or mapped across an array
 
 ```python
