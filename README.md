@@ -1,6 +1,6 @@
 # AcisCanTools
 
-AcisCanTools is a Python toolkit for logging, parsing, simulating, and analyzing CAN (Controller Area Network) data, with a focus on emissions sensor data such as NO~x~ and O₂ using the [PythonCAN](https://python-can.readthedocs.io/en/stable/api.html) module in the background. It provides utilities for working with raw CAN logs, parsing sensor data, and for simulating CAN traffic for testing and development.
+AcisCanTools is a Python toolkit for logging, parsing, simulating, and analyzing CAN (Controller Area Network) data, with a focus on emissions sensor data such as NO<sub>x</sub> and O₂ using the [PythonCAN](https://python-can.readthedocs.io/en/stable/api.html) module in the background. It provides utilities for working with raw CAN logs, parsing sensor data, and for simulating CAN traffic for testing and development.
 
 ---
 
@@ -55,14 +55,13 @@ No., Time, Snd/Rc, Dest, Src, Priority, PGN, NOx Raw, O2 Raw, Status, Heater, Er
 """
 ```
 
->Context: In the above example, the calling of `configure_smart_nox_output()` does two things, it firstly allows the user to determine which data they want out, if you wish to exclude a datafield you can pass that field as a False argument, if I wished to only receive raw NO~x~ and O~2~ I would run the following before beginning logging:
+>Context: In the above example, the calling of `configure_smart_nox_output()` does two things, it firstly allows the user to determine which data they want out, if you wish to exclude a datafield you can pass that field as a False argument, if I wished to only receive raw NO<sub>x</sub> and O<sub>2</sub> I would run the following before beginning logging:
 
 ```python
 configure_smart_nox_output(status=False, heater=False, error_nox=False, error_o2=False)
-# Note that a log generated that is missing data like this may not work properly with the canSim object
 ```
 
-In addition, calling this function also sets an internal flag telling the Parser class to interpret the data as specified in the datasheet for the Continental Smart NO~x~ Sensor.
+In addition, calling this function also sets an internal flag telling the Parser class to interpret the data as specified in the datasheet for the Continental Smart NO<sub>x</sub> Sensor.
 Currently, this is the only data format supported by the Parser object, and this format is implied if not specified, but it is setup in such a way that a hypothetical `configure_for_some_other_device()` method could be added, and implemented directly into the parser class with relative ease for future development and utility.
 
 ### Reading CAN Traffic
@@ -104,10 +103,16 @@ packet = log.read()
 print(ACT.utils.static_decode(packet.data))
 ```
 
-### Converting Raw NO~x~ and O~2~ Values
+### Converting Raw NO<sub>x</sub> and O<sub>2</sub> Values
 
-The utils class contains two methods to statically convert the raw NO~x~ and O~2~ values sent by the NO~x~ sensor to meaningful unit-values using the following conversion factors
-$$ \boxed{[\ce{NO_x}]=(0.05\cdot \ce{NO_x\_raw} - 200) \text{PPM}} \\ {} \\\boxed{[\ce{O2}]=(0.000514\cdot\ce{O2\_raw}-12)\%}$$
+The utils class contains two methods to statically convert the raw NO<sub>x</sub> and O<sub>2</sub> values sent by the NO<sub>x</sub> sensor to meaningful unit-values using the following conversion factors
+
+<div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+  <img src="assets/NOx_Equation.png" alt="NOx Conversion Equation" width="300"/>
+  <img src="assets/O2_Equation.png" alt="O2 Conversion Equation" width="300"/>
+</div>
+
+\
 These functions can be called on a singlular value or mapped across an array
 
 ```python
@@ -120,6 +125,7 @@ data = ACT.static_decode(log.read().data)
 print(f"NOx: {act.utils.convert_NOx(data[0])}PPM")
 print(f"O2: {act.utils.convert_O2(data[1])}%")
 ```
+
 
 ### Hardware Detection and Checking
 
@@ -184,7 +190,7 @@ except KeyboardInterrupt:
 
 ## Example Workflow
 
-### Live NO~x~ and O~2~ Monitor
+### Live NO<sub>x</sub> and O<sub>2</sub> Monitor
 
 ```python
 import AcisCanTools as ACT
