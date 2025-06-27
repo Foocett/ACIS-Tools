@@ -1,11 +1,6 @@
 # logger.py
-import scipy.fft
 import re
-from rocket_fft import scipy_like
-import numpy as np
-import numba as nb
 import subprocess
-import threading
 import can
 import csv
 import json
