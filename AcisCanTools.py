@@ -641,61 +641,6 @@ class utils:
             return None
 
     @staticmethod
-    def extract_field_as_raw_data(filepath, feild, output=False, prefix=True, output_path=None, output_name=None):
-        """
-        When a CSV file is passed to this method, it will extract the specified field and return the data as an array, optionally writing a new CSV file\n
-        Args:
-            file (str): The path to the CSV file to extract fields from.
-            field (any): The feild to extract from the CSV file, if passed as a string, it will be used as the field name, if passed as an array, it will be used as the column index (0-indexed).\n
-            output (bool): If true, the output will also be written to a CSV file
-            prefix (bool): If True, the outputted CSV file will have the field name as a prefix to the data, otherwise it will not, ignored if an array is returned, True by default.\n
-            output_path (str): The path to the output file, only needed if output is True, defaults to the current directory.
-        Returns:
-            list: A list of values extracted from the specified field in the CSV file.\n
-        Raises:
-            FileNotFoundError: If the specified file does not exist.
-            ValueError: If the specified field is not found in the CSV file.
-            TypeError: If the field is neither a string nor an integer.
-        """
-        filepath = filepath + \
-            ".csv" if not filepath.endswith(".csv") else filepath
-
-        try:
-            with open(filepath, 'r') as input_file:
-                if type(feild) is str:
-                    reader = csv.DictReader(input_file)
-                    if feild not in reader.fieldnames:
-                        raise ValueError(
-                            f"Field '{feild}' not found in the CSV file.")
-                    data = [row[feild] for row in reader]
-                elif type(feild) is int:
-                    reader = csv.reader(input_file)
-                    data = [row[feild] for row in reader if len(row) > feild]
-                else:
-                    raise TypeError(
-                        "Field must be a string (field name) or an integer (column index).")
-        except FileNotFoundError:
-            print(f"File '{filepath}' not found.")
-            return []
-
-        if output:
-            if output_path is None:
-                output_path = os.getcwd()
-            if output_name is None:
-                output_name = f"{feild}_extracted_data.csv" if type(
-                    feild) is str else "extracted_data.csv"
-            output_filepath = os.path.join(output_path, output_name)
-            with open(output_filepath, 'w', newline='') as output_file:
-                writer = csv.writer(output_file)
-                if prefix and type(feild) is str:
-                    writer.writerow([feild])
-                for value in data:
-                    writer.writerow([value])
-            print(f"Data extracted and written to '{output_filepath}'")
-
-        return data
-
-    @staticmethod
     def convert_NOx(rawVal):
         """
         Converts a list of raw NOx values to a list of NOx concentrations in ppm.
