@@ -126,7 +126,6 @@ print(f"NOx: {act.utils.convert_NOx(data[0])}PPM")
 print(f"O2: {act.utils.convert_O2(data[1])}%")
 ```
 
-
 ### Hardware Detection and Checking
 
 The utils class also contains two methods for detecting a CAN interface on your system as well as checking the status of your primary interface if it exists
