@@ -9,6 +9,9 @@ from datetime import datetime
 from warnings import warn
 import os
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
 
 class Logger:
     """
@@ -867,6 +870,39 @@ class sensorSim:
         self.stop()
         if hasattr(self, 'bus'):
             self.bus.shutdown()
+
+
+class canVis:
+    """
+    canVis (pronounced "canvis") is a class containing various methods and tools for CAN-visualization.
+    This class is not fully implemented yet, but will be used to visualize CAN data in a more user-friendly way.
+    """
+
+    @staticmethod
+    def plot_nox(file, raw=True):
+        """
+        Plot NOx data from a CSV file.
+        Args:
+            file (str): Path to the CSV file containing NOx data.
+            raw (bool): If True, plots raw NOx values. If False, plots converted NOx concentrations in ppm.
+        """
+
+        df = pd.read_csv(file)
+        if 'NOx Raw' not in df.columns:
+            raise ValueError("CSV file must contain 'NOx Raw' column.")
+
+        if raw:
+            plt.plot(df['Time'], df['NOx Raw'], label='Raw NOx')
+            plt.ylabel('Raw NOx Value')
+        else:
+            nox_ppm = utils.convert_NOx(df['NOx Raw'])
+            plt.plot(df['Time'], nox_ppm, label='NOx Concentration (ppm)')
+            plt.ylabel('NOx Concentration (ppm)')
+
+        plt.xlabel('Time (s)')
+        plt.title('NOx Data Visualization')
+        plt.legend()
+        plt.show()
 
 
 if __name__ == "__main__":
