@@ -10,9 +10,5 @@ wheels/
 .venv
 
 # Local testing files
-monitor.py
-simTest.py
-plotting/
-tests/
 .markdownlint.json
 README.pdf
