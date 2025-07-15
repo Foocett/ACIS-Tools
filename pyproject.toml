@@ -1,7 +1,7 @@
 [project]
 name = "AcisCanTools"
-version = "0.1.0"
-description = "A Python toolkit for logging, parsing, simulating, and analyzing CAN (Controller Area Network) data."
+version = "1.1.0"
+description = "A Python toolkit for logging, parsing, simulating, visualizing, and analyzing CAN (Controller Area Network) data."
 requires-python = ">=3.12"
 dependencies = [
     "matplotlib>=3.10.3",
@@ -11,11 +11,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "matplotlib>=3.10.3",
     "openpyxl>=3.1.5",
-    "pandas>=2.3.0",
+    "pytest>=8.4.1",
 ]
 
 [tool.setuptools.packages.find]
 include = ["AcisCanTools"]
-exclude = ["plotting", "tests", "logs", "assets"]
+exclude = ["plotting", "tests", "logs", "assets", "tools"]
