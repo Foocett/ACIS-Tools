@@ -15,7 +15,7 @@ AcisCanTools is a Python toolkit for logging, parsing, simulating, and analyzing
 ## Installation
 
 There are a few ways to go about using the AcisCanTools package. The first option that skips installation alltogether is by simply having [AcisCanTools.py](AcisCanTools.py) in your project directory. While this can cause issues with versions and dependencies, these *can* be worked out by hand, this method is not recommended.
-The other (and recommended) option is to install the package via pip. While the package is currently not availible through PyPi, you can install the local build by locating the `.tar.gz` file running `pip install path/to/package/file/___.tar.gz` in your primary project directory.
+The other (and recommended) option is to install the package via pip. You can install the local build by locating the `.tar.gz` file running `pip install path/to/package/file/___.tar.gz` in your primary project directory or preferrably install it from PyPi with `pip install AcisCanTools==1.1.0`.
 
 ---
 
@@ -207,6 +207,22 @@ except KeyboardInterrupt:
     sim.bus.shutdown()
     print("Replay stopped by user.")
 ```
+
+### Visualizing Logs
+
+Version 1.0.1 introduces the **CanVis** class (pronounced canvis, I know, I'm very clever) that allows for visualization of Parser logs via Matplotlib. While the functionality is currently limited, more will be added in the future.
+
+#### plotLog
+
+This method provides a decently customizable way to visualize an entire log produced by the Parser class. In the future, functionality will be added to select specific chunks of time, as well as support for un-parsed logs from the Logger class.
+
+The function requires a path to a log file and plots NOx, O2, and Other information on three separate plots. Individual sources can be selected, and they can be plotted together or separately as seen below
+<div style="display: flex; justify-content: space-evenly; align-items: center; gap: 20px;">
+  <img src="assets/notAsOne.png" alt="Separated form" width="300"/>
+  <img src="assets/asOne.png" alt="Merged form" width="300"/>
+</div>
+
+---
 
 ## Example Workflow
 
