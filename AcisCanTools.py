@@ -903,6 +903,154 @@ class canVis:
         plt.legend()
         plt.show()
 
+    @staticmethod
+    def plotLog(file, raw=True, srcList=None, excludeSrc=None, sourceType="src", asOne=False, save=False, show=True, outputName=datetime.now().strftime('%Y%m%d-%H%M%S')):
+        """
+        Plot any specified time-dependent data from a provided AcisCanTools parser file
+
+        - Generates a three plots per source, one for NOx, one for 02, and a third for the status, heater, and error bytes.\n
+        - If asOne is true, all selected SRCs will be placed into a single figure, still containing two subplots, if false, a figure will be created for each source
+        - Only 4 line styles are possible so asOne will be ignored and all data will be plotted separately if length(srcList) > 4
+        Args:
+            file (str): Path to the CSV file containing data.
+            raw (bool): If True, plots raw NOx/O2 values. If False, plots converted values.
+            srcList (list): List of source addresses to collect data from, plots all if not provided.
+            excludeSrc (list): List of sources/addresses to ignore, ignored if srcList is not None
+            sourceType (str): The type of source to filter by, either 'src' or 'PGN', src by default.
+            asOne (bool): If True, plots all data in one figure. If False, creates separate figures for each field.
+            save (bool): Determines wether or not to save the plot(s)
+            show(bool): Determines wether or not to display the plot(s) (forced to true if save is false)
+            outputName (string): Desired path and name for saved figures(defaults to current date and time)
+
+
+        Raises:
+            ValueError: Can rise for many reasons, all likely due to improperly formatted CSV files and/or incorrect parameters.
+            FileNotFoundError: If the specified file does not exist.
+        """
+
+        # Setup
+        data = pd.read_csv(file)
+
+        if srcList is not None and len(srcList) > 4:
+            asOne = False
+
+        if not save:
+            show = True
+
+        lineTypes = ['-', '--', '-.', ':']
+
+        if srcList is None:
+            if sourceType.lower() == 'src':
+                srcList = data.Src.unique()
+            else:
+                srcList = data.PGN.unique()
+
+        # Blacklist specified sources
+        srcList = [
+            src for src in srcList if src not in excludeSrc] if excludeSrc is not None else srcList
+
+        # Handle errors
+        if 'Time' not in data.columns:
+            raise ValueError("CSV file must contain 'Time' column.")
+        if sourceType.lower() not in ['src', 'png']:
+            raise ValueError("sourceType must be either 'src' or 'PGN'.")
+        elif sourceType.lower() == 'src' and "Src" not in data.columns:
+            raise ValueError(
+                "CSV file must contain 'Src' column when sourceType is 'src'.")
+        elif sourceType.lower() == 'PGN' and "PGN" not in data.columns:
+            raise ValueError(
+                "CSV file must contain 'PGN' column when sourceType is 'PGN'.")
+
+        for col in ['NOx Raw', 'O2 Raw', 'Status', 'Heater', 'Error NOx', 'Error O2']:
+            if col not in data.columns:
+                raise ValueError(
+                    f"CSV file must contain '{col}' column if you wish to plot it.")
+
+        if not asOne:
+            fig, axes = plt.subplots(
+                # Figsize is done such that the figure scales linearly and 2 sources creates 16x9
+                len(srcList), 3, figsize=(16, 4.5*len(srcList)))
+            plt.subplots_adjust(hspace=0.5, wspace=0.3)
+            for i, src in enumerate(srcList):
+                # Create temp dataframe with only desired src
+                if (sourceType.lower() == 'src'):
+                    current = data.loc[data.Src == src]
+                else:
+                    current = data.loc[data.PGN == src]
+
+                noxPlot = axes[i][0]
+                o2Plot = axes[i][1]
+                otherPlot = axes[i][2]
+
+                noxPlot.set_title(
+                    f"NOx for {"Src" if sourceType.lower() == "src" else "PGN"}: {src}", pad=20)
+                o2Plot.set_title(
+                    f"O2 for {"Src" if sourceType.lower() == "src" else "PGN"}: {src}", pad=20)
+                otherPlot.set_title(
+                    f"Other Data for {"Src" if sourceType.lower() == "src" else "PGN"}: {src}", pad=20)
+
+                nox = current["NOx Raw"] if raw else utils.convert_NOx(
+                    current["NOx Raw"])
+                o2 = current["O2 Raw"] if raw else utils.convert_O2(
+                    current["O2 Raw"])
+
+                noxPlot.plot(current.Time, nox, label=(
+                    "Raw NOx" if raw else "NOx")+" (PPM)")
+                noxPlot.legend()
+                o2Plot.plot(current.Time, o2, label=(
+                    "Raw O2" if raw else "O2") + "(%)")
+                o2Plot.legend()
+
+                otherPlot.plot(current.Time, current.Status, label="Status")
+                otherPlot.plot(current.Time, current.Heater, label="Heater")
+                otherPlot.plot(
+                    current.Time, current["Error NOx"], label="Error NOx")
+                otherPlot.plot(
+                    current.Time, current["Error O2"], label="Error O2")
+                otherPlot.legend(bbox_to_anchor=(.955, 0.5), loc='center left')
+        else:
+            fig, axes = plt.subplots(3, 1, figsize=(16, 9))
+            plt.subplots_adjust(hspace=0.5, wspace=0.3)
+            for i, src in enumerate(srcList):
+                if (sourceType.lower() == 'src'):
+                    current = data.loc[data.Src == src]
+                else:
+                    current = data.loc[data.PGN == src]
+
+                noxPlot = axes[0]
+                o2Plot = axes[1]
+                otherPlot = axes[2]
+
+                noxPlot.set_title("NOx")
+                o2Plot.set_title("O2")
+                otherPlot.set_title("Other Data")
+
+                nox = current["NOx Raw"] if raw else utils.convert_NOx(
+                    current["NOx Raw"])
+                o2 = current["O2 Raw"] if raw else utils.convert_O2(
+                    current["O2 Raw"])
+
+                noxPlot.plot(current.Time, nox, lineTypes[i], label=(
+                    "Raw NOx" if raw else "NOx") + f" (PPM) ({src})")
+                noxPlot.legend(bbox_to_anchor=(.955, 0.5), loc='center left')
+                o2Plot.plot(current.Time, o2, label=(
+                    "Raw O2" if raw else "O2") + f"(%) ({src})")
+                o2Plot.legend(bbox_to_anchor=(.955, 0.5), loc='center left')
+
+                otherPlot.plot(
+                    current.Time, current.Status, lineTypes[i], label=f"Status ({src})")
+                otherPlot.plot(
+                    current.Time, current.Heater, lineTypes[i], label=f"Heater ({src})")
+                otherPlot.plot(
+                    current.Time, current["Error NOx"], lineTypes[i], label=f"Error NOx ({src})")
+                otherPlot.plot(
+                    current.Time, current["Error O2"], lineTypes[i], label=f"Error O2 ({src})")
+                otherPlot.legend(bbox_to_anchor=(.955, 0.5), loc='center left')
+        if (save):
+            plt.savefig(outputName)
+        if (show):
+            plt.show()
+
 
 if __name__ == "__main__":
     sim = sensorSim("logs/field_test.csv",
