@@ -1053,6 +1053,7 @@ class canVis:
 
 
 if __name__ == "__main__":
+    """
     sim = sensorSim("logs/field_test.csv",
                     interface="can0", dataFormat="parsed")
     try:
@@ -1062,3 +1063,7 @@ if __name__ == "__main__":
         print("\n")
         sim.bus.shutdown()
         print("Replay stopped by user.")
+    """
+
+    canVis.plotLog("logs/simTest.log.csv", raw=True,
+                   sourceType="png", asOne=False, show=True, save=False, excludeSrc=[0])
