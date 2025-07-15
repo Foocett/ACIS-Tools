@@ -1,6 +1,6 @@
 [project]
 name = "AcisCanTools"
-version = "1.0.1"
+version = "0.1.1"
 description = "A Python toolkit for logging, parsing, simulating, visualizing, and analyzing CAN (Controller Area Network) data."
 requires-python = ">=3.12"
 dependencies = [
