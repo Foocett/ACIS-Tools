@@ -647,7 +647,7 @@ class utils:
     def convert_NOx(rawVal):
         """
         Converts a list of raw NOx values to a list of NOx concentrations in ppm.
-        The conversion is based on the formula: NOx (ppm) = (raw value / 65536) * 2000
+        The conversion is based on the formula: NOx (ppm) = (raw value * .05) - 200
 
         Args:
             rawVal (int): A single raw NOx value to convert to PPM.
@@ -661,7 +661,7 @@ class utils:
     def convert_O2(rawVal):
         """
         Converts a list of raw O2 values to a list of O2 concentrations in ppm.
-        The conversion is based on the formula: O2 (ppm) = (raw value / 65536) * 2000
+        The conversion is based on the formula: O2 (ppm) = (raw value * .000514) - 12
 
         Args:
             rawVal (int): A single raw O2 value to be converted to percentage.
