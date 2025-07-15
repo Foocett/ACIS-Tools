@@ -885,7 +885,8 @@ class canVis:
             file (str): Path to the CSV file containing NOx data.
             raw (bool): If True, plots raw NOx values. If False, plots converted NOx concentrations in ppm.
         """
-
+        print("This method is not yet implemented")
+        raise NotImplemented
         df = pd.read_csv(file)
         if 'NOx Raw' not in df.columns:
             raise ValueError("CSV file must contain 'NOx Raw' column.")
@@ -1066,4 +1067,4 @@ if __name__ == "__main__":
     """
 
     canVis.plotLog("logs/simTest.log.csv", raw=True,
-                   sourceType="png", asOne=False, show=True, save=False, excludeSrc=[0])
+                   sourceType="src", asOne=False, show=True, save=False, excludeSrc=[0])
