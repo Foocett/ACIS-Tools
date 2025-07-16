@@ -15,7 +15,7 @@ AcisCanTools is a Python toolkit for logging, parsing, simulating, and analyzing
 ## Installation
 
 There are a few ways to go about using the AcisCanTools package. The first option that skips installation alltogether is by simply having [AcisCanTools.py](AcisCanTools.py) in your project directory. While this can cause issues with versions and dependencies, these *can* be worked out by hand, this method is not recommended.
-The other (and recommended) option is to install the package via pip. You can install the local build by locating the `.tar.gz` file running `pip install path/to/package/file/___.tar.gz` in your primary project directory or preferrably install it from PyPi with `pip install AcisCanTools==0.1.1`.
+The other (and recommended) option is to install the package via pip. You can install the local build by locating the `.tar.gz` file running `pip install path/to/package/file/___.tar.gz` in your primary project directory or preferrably install it from PyPi with `pip install AcisCanTools`.
 
 ---
 

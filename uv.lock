@@ -4,8 +4,8 @@ requires-python = ">=3.12"
 
 [[package]]
 name = "aciscantools"
-version = "0.1.0"
-source = { virtual = "." }
+version = "0.1.2"
+source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
     { name = "pandas" },
@@ -14,9 +14,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "matplotlib" },
     { name = "openpyxl" },
-    { name = "pandas" },
     { name = "pytest" },
 ]
 
@@ -29,9 +27,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=2.3.0" },
     { name = "pytest", specifier = ">=8.4.1" },
 ]
 
